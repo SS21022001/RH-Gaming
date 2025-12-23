@@ -1,10 +1,11 @@
+require('dotenv').config();
 const mongoose = require('mongoose');
 const { Schema } = mongoose;
-require('dotenv').config();
 
-const uri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/rh_gaming';
+const uri = process.env.MONGODB_URI;
 
 async function connect() {
+  if (!uri) throw new Error('MONGODB_URI not provided. Set it in .env with your Atlas connection string.');
   await mongoose.connect(uri, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
@@ -52,58 +53,3 @@ const Match = mongoose.models.Match || mongoose.model('Match', MatchSchema);
 const Result = mongoose.models.Result || mongoose.model('Result', ResultSchema);
 
 module.exports = { connect, models: { Player, Tournament, Match, Result }, mongoose };
-const Database = require('better-sqlite3');
-const path = require('path');
-
-const dbPath = path.join(__dirname, 'data.db');
-const db = new Database(dbPath);
-
-// Initialize schema
-db.exec(`
-PRAGMA foreign_keys = ON;
-
-CREATE TABLE IF NOT EXISTS players (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  tag TEXT,
-  rating INTEGER DEFAULT 0,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS tournaments (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  title TEXT NOT NULL,
-  description TEXT,
-  start_date TEXT,
-  end_date TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS matches (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  tournament_id INTEGER NOT NULL,
-  player_a_id INTEGER NOT NULL,
-  player_b_id INTEGER NOT NULL,
-  score_a INTEGER DEFAULT 0,
-  score_b INTEGER DEFAULT 0,
-  status TEXT DEFAULT 'scheduled',
-  scheduled_at TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE,
-  FOREIGN KEY (player_a_id) REFERENCES players(id) ON DELETE CASCADE,
-  FOREIGN KEY (player_b_id) REFERENCES players(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS results (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  match_id INTEGER NOT NULL,
-  winner_player_id INTEGER,
-  details TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE,
-  FOREIGN KEY (winner_player_id) REFERENCES players(id) ON DELETE SET NULL
-);
-
-`);
-
-module.exports = db;

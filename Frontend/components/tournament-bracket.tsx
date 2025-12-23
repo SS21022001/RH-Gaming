@@ -1,7 +1,10 @@
 "use client"
 
 import { BracketMatch } from "./bracket-match"
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { getTournaments } from "../lib/api"
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
 interface BracketData {
   round: number
@@ -13,31 +16,45 @@ interface BracketData {
   }>
 }
 
-const mockBracketData: BracketData[] = [
-  {
-    round: 1,
-    matches: [
-      { id: "1-1", player1: "SonicFox", player2: "Dragon", winner: "SonicFox" },
-      { id: "1-2", player1: "Tekken_Pro", player2: "GhostRider", winner: "Tekken_Pro" },
-      { id: "1-3", player1: "Flash", player2: "Thunder", winner: "Flash" },
-      { id: "1-4", player1: "Phoenix", player2: "Shadow", winner: "Phoenix" },
-    ],
-  },
-  {
-    round: 2,
-    matches: [
-      { id: "2-1", player1: "SonicFox", player2: "Tekken_Pro", winner: "SonicFox" },
-      { id: "2-2", player1: "Flash", player2: "Phoenix", winner: "Flash" },
-    ],
-  },
-  {
-    round: 3,
-    matches: [{ id: "3-1", player1: "SonicFox", player2: "Flash" }],
-  },
-]
+const mockBracketData: BracketData[] = []
 
 export function TournamentBracket() {
   const [expandedRound, setExpandedRound] = useState<number | null>(null)
+  const [bracketData, setBracketData] = useState<BracketData[]>(mockBracketData)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    let mounted = true
+    async function load() {
+      setLoading(true)
+      try {
+        // try to get first tournament and its matches
+        const tournaments = await getTournaments()
+        const first = tournaments && tournaments.length ? tournaments[0] : null
+        if (!first) return
+        const res = await fetch(`${API_BASE}/api/matches?tournament_id=${first._id}`)
+        if (!res.ok) throw new Error('Failed to fetch matches')
+        const matches = await res.json()
+
+        // Map matches into a single round (backend doesn't store round info)
+        const roundMatches = matches.map((m: any) => ({
+          id: String(m._id || m.id),
+          player1: String(m.playerA || m.player_a_id || ''),
+          player2: String(m.playerB || m.player_b_id || ''),
+          winner: m.scoreA > m.scoreB ? String(m.playerA || m.player_a_id) : (m.scoreB > m.scoreA ? String(m.playerB || m.player_b_id) : undefined),
+        }))
+
+        if (mounted) setBracketData([{ round: 1, matches: roundMatches }])
+      } catch (e) {
+        // keep mock data (empty) on error
+        console.warn('Could not load bracket from API', e)
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    }
+    load()
+    return () => { mounted = false }
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -47,7 +64,8 @@ export function TournamentBracket() {
       </div>
 
       <div className="space-y-4">
-        {mockBracketData.map((round) => (
+        {loading && <div className="p-4">Loading bracket…</div>}
+        {bracketData.map((round) => (
           <div key={round.round} className="border border-border rounded-lg">
             <button
               onClick={() => setExpandedRound(expandedRound === round.round ? null : round.round)}

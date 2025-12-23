@@ -1,61 +1,49 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { TournamentCard } from "@/components/tournament-card"
 import { TournamentFilters } from "@/components/tournament-filters"
 import { Input } from "@/components/ui/input"
+import { getTournaments } from '@/lib/api'
 
-// Mock tournament data
-const mockTournaments = [
-  {
-    id: "mk-spring-2025",
-    title: "Spring Championship 2025",
-    game: "Mortal Kombat",
-    status: "active" as const,
-    participants: 128,
-    prizePool: 50000,
-    startDate: "Jan 15, 2025",
-  },
-  {
-    id: "fifa-pro-league",
-    title: "FIFA Pro League",
-    game: "FIFA",
-    status: "active" as const,
-    participants: 256,
-    prizePool: 100000,
-    startDate: "Jan 10, 2025",
-  },
-  {
-    id: "mk-winter-finals",
-    title: "Winter Finals",
-    game: "Mortal Kombat",
-    status: "completed" as const,
-    participants: 96,
-    prizePool: 45000,
-    startDate: "Dec 15, 2024",
-  },
-  {
-    id: "fifa-weekend",
-    title: "Weekend Warriors Cup",
-    game: "FIFA",
-    status: "upcoming" as const,
-    participants: 180,
-    prizePool: 25000,
-    startDate: "Jan 25, 2025",
-  },
-]
+// Client state will hold tournaments fetched from backend
 
 export default function TournamentsPage() {
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [gameFilter, setGameFilter] = useState("all")
+  const [tournaments, setTournaments] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const filtered = mockTournaments.filter((t) => {
-    const matchesSearch = t.title.toLowerCase().includes(search.toLowerCase())
-    const matchesStatus = statusFilter === "all" || t.status === statusFilter
-    const matchesGame = gameFilter === "all" || t.game.toLowerCase().includes(gameFilter.toLowerCase())
+  useEffect(() => {
+    let mounted = true
+    setLoading(true)
+    getTournaments()
+      .then((data) => {
+        if (mounted) setTournaments(data)
+      })
+      .catch((err) => {
+        console.error(err)
+        if (mounted) setError(String(err))
+      })
+      .finally(() => {
+        if (mounted) setLoading(false)
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  const filtered = tournaments.filter((t) => {
+    const title = (t.title || t.name || '').toString().toLowerCase()
+    const game = (t.game || t.gameName || '').toString().toLowerCase()
+    const matchesSearch = title.includes(search.toLowerCase())
+    const matchesStatus = statusFilter === "all" || (t.status === statusFilter)
+    const matchesGame = gameFilter === "all" || game.includes(gameFilter.toLowerCase())
     return matchesSearch && matchesStatus && matchesGame
   })
 
@@ -88,10 +76,14 @@ export default function TournamentsPage() {
             </div>
 
             {/* Tournament Grid */}
-            {filtered.length > 0 ? (
+            {loading ? (
+              <div className="text-center py-16">Loading tournaments...</div>
+            ) : error ? (
+              <div className="text-center py-16 text-red-500">Error loading tournaments: {error}</div>
+            ) : filtered.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filtered.map((tournament) => (
-                  <TournamentCard key={tournament.id} {...tournament} />
+                  <TournamentCard key={tournament._id || tournament.id} {...tournament} />
                 ))}
               </div>
             ) : (
@@ -101,7 +93,7 @@ export default function TournamentsPage() {
             )}
 
             <div className="text-sm text-muted-foreground pt-8 border-t border-border">
-              Showing {filtered.length} of {mockTournaments.length} tournaments
+              Showing {filtered.length} of {tournaments.length} tournaments
             </div>
           </div>
         </section>
